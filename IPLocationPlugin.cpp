@@ -6,6 +6,48 @@
 #include <regex>
 #include <iphlpapi.h>
 
+static std::wstring TrimW(const std::wstring& s)
+{
+    const wchar_t* ws = L" \t\n\r\f\v";
+    const auto start = s.find_first_not_of(ws);
+    if (start == std::wstring::npos)
+        return L"";
+    const auto end = s.find_last_not_of(ws);
+    return s.substr(start, end - start + 1);
+}
+
+static bool IsIPv4(const std::wstring& ip)
+{
+    int partCount = 0;
+    int value = 0;
+    int digits = 0;
+    for (size_t i = 0; i <= ip.size(); ++i)
+    {
+        const wchar_t c = (i < ip.size()) ? ip[i] : L'.';
+        if (c >= L'0' && c <= L'9')
+        {
+            value = value * 10 + (c - L'0');
+            if (++digits > 3)
+                return false;
+            if (value > 255)
+                return false;
+        }
+        else if (c == L'.')
+        {
+            if (digits == 0)
+                return false;
+            ++partCount;
+            value = 0;
+            digits = 0;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return partCount == 4;
+}
+
 // Singleton instance
 CIPLocationPlugin& CIPLocationPlugin::Instance()
 {
@@ -166,27 +208,23 @@ void CIPLocationPlugin::UpdateData()
     std::wstring city;
     std::wstring status;
 
-    auto ipwho = NetworkHelper::HttpGet(L"https://ipwho.is/?lang=zh-CN", 8000);
-    if (!ipwho.body.empty())
+    auto v4_icanhazip = NetworkHelper::HttpGet(L"https://ipv4.icanhazip.com/", 8000);
+    if (!v4_icanhazip.body.empty())
     {
-        try
-        {
-            std::regex ipRe("\\\"ip\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-            std::regex countryRe("\\\"country\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-            std::regex regionRe("\\\"region\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-            std::regex cityRe("\\\"city\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-            std::smatch m;
+        ip = TrimW(NetworkHelper::Utf8ToWString(v4_icanhazip.body));
+        if (!IsIPv4(ip))
+            ip.clear();
+    }
 
-            if (std::regex_search(ipwho.body, m, ipRe) && m.size() > 1)
-                ip = NetworkHelper::Utf8ToWString(m[1].str());
-            if (std::regex_search(ipwho.body, m, countryRe) && m.size() > 1)
-                country = NetworkHelper::Utf8ToWString(m[1].str());
-            if (std::regex_search(ipwho.body, m, regionRe) && m.size() > 1)
-                region = NetworkHelper::Utf8ToWString(m[1].str());
-            if (std::regex_search(ipwho.body, m, cityRe) && m.size() > 1)
-                city = NetworkHelper::Utf8ToWString(m[1].str());
+    if (ip.empty())
+    {
+        auto v4_ident = NetworkHelper::HttpGet(L"https://v4.ident.me/", 8000);
+        if (!v4_ident.body.empty())
+        {
+            ip = TrimW(NetworkHelper::Utf8ToWString(v4_ident.body));
+            if (!IsIPv4(ip))
+                ip.clear();
         }
-        catch (...) {}
     }
 
     if (ip.empty())
@@ -199,15 +237,42 @@ void CIPLocationPlugin::UpdateData()
                 std::regex ipRe("\\\"ip\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
                 std::smatch m;
                 if (std::regex_search(ipify.body, m, ipRe) && m.size() > 1)
-                    ip = NetworkHelper::Utf8ToWString(m[1].str());
+                {
+                    const std::wstring ipCandidate = TrimW(NetworkHelper::Utf8ToWString(m[1].str()));
+                    if (IsIPv4(ipCandidate))
+                        ip = ipCandidate;
+                }
             }
             catch (...) {}
         }
     }
 
-    if (country.empty())
+    if (!ip.empty())
     {
-        auto geo = NetworkHelper::HttpGet(L"http://ip-api.com/json/?fields=status,message,country,countryCode,query&lang=zh-CN", 8000);
+        auto ipwho = NetworkHelper::HttpGet(L"https://ipwho.is/" + ip + L"?lang=zh-CN", 8000);
+        if (!ipwho.body.empty())
+        {
+            try
+            {
+                std::regex countryRe("\\\"country\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                std::regex regionRe("\\\"region\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                std::regex cityRe("\\\"city\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                std::smatch m;
+
+                if (std::regex_search(ipwho.body, m, countryRe) && m.size() > 1)
+                    country = NetworkHelper::Utf8ToWString(m[1].str());
+                if (std::regex_search(ipwho.body, m, regionRe) && m.size() > 1)
+                    region = NetworkHelper::Utf8ToWString(m[1].str());
+                if (std::regex_search(ipwho.body, m, cityRe) && m.size() > 1)
+                    city = NetworkHelper::Utf8ToWString(m[1].str());
+            }
+            catch (...) {}
+        }
+    }
+
+    if (!ip.empty() && country.empty())
+    {
+        auto geo = NetworkHelper::HttpGet(L"http://ip-api.com/json/" + ip + L"?fields=status,message,country,countryCode,query&lang=zh-CN", 8000);
         if (!geo.body.empty())
         {
             try

@@ -6,6 +6,7 @@
 
 ![Preview](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907585.png)
 
+![Built with Trae](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907127.png)
 
 TrafficMonitor is a lightweight Windows tool. This plugin adds one feature that is especially useful if you work with VPN/proxy nodes:
 
@@ -93,6 +94,10 @@ Tip: if you update the DLL, fully exit TrafficMonitor (ensure the process ends) 
 - Auto refresh: every **30 seconds** (full refresh: IP + location)
 - Manual click refresh: not used (disabled)
 - Tooltip: shows `Public IP` and one merged `地区` line (avoids duplicated country/region/city)
+
+IPv4 only:
+
+- The displayed IP is forced to IPv4 (some networks return IPv6 by default).
 
 ## Data quality notes
 

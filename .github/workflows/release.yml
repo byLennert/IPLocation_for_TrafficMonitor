@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (VS)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build (Release)
+        run: cmake --build build --config Release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $dll1 = Join-Path $PWD "build\Release\IPLocationPlugin.dll"
+          $dll2 = Join-Path $PWD "build\IPLocationPlugin.dll"
+          $dll = if (Test-Path $dll1) { $dll1 } elseif (Test-Path $dll2) { $dll2 } else { throw "IPLocationPlugin.dll not found" }
+          $out = "IPLocationPlugin_${tag}_x64.zip"
+          if (Test-Path $out) { Remove-Item $out -Force }
+          Compress-Archive -Path $dll -DestinationPath $out
+          Write-Host "Packaged $out"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            IPLocationPlugin_*.zip
+          generate_release_notes: true
+

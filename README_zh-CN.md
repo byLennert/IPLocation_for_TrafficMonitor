@@ -94,6 +94,10 @@ cmake --build build --config Release
 - 手动刷新：不需要（已禁用点击刷新）
 - 鼠标提示：显示 `Public IP` + 合并后的“地区”一行（避免 Country/Region/City 重复）
 
+仅显示 IPv4：
+
+- 由于部分网络会优先返回 IPv6，本插件会强制获取并展示 IPv4 公网出口。
+
 ## 数据准确性说明
 
 代理/机房 IP 的地理库数据常会出现差异（不同供应商、前缀/ASN 迁移、标注策略不同）。
