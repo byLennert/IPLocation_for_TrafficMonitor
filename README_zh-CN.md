@@ -2,6 +2,15 @@
 
 [English](README.md)
 
+## 介绍
+我为 TrafficMonitor 开发了一款全新 IPLocation 插件，精准显示公网出口 IP 及归属地区，每 30 秒自动刷新，解决了原版插件显示不准、无地区信息的问题。
+### 适用场景
+VPN / 代理切换，快速校验出口节点是否生效
+远程开发、服务器配置，快速查看公网 IP
+网络排障，实时确认真实出口 IP
+多网络环境切换，无需打开额外工具
+
+
 ## 效果预览
 
 ![效果预览](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907585.png)
