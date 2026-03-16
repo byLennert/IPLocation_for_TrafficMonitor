@@ -6,10 +6,10 @@
 
 ![Preview](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907585.png)
 
-##🔥 Accurate IPLocation Plugin for TrafficMonitor | Real-time IP & Region
-###Description
+## Accurate IPLocation Plugin for TrafficMonitor | Real-time IP & Region
+### Description
 I've built a new IPLocation plugin for TrafficMonitor that accurately displays your public egress IP and geographic region, auto-refreshing every 30 seconds. It fixes the inaccurate display and lack of region support in the original plugin.
-###✅ Useful scenarios
+### Useful scenarios
 Verify VPN/proxy node switching instantly
 Check public IP quickly for remote development & server configuration
 Troubleshoot network issues with real egress IP
