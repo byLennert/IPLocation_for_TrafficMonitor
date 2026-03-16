@@ -6,7 +6,6 @@
 
 ![Preview](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907585.png)
 
-![Built with Trae](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907127.png)
 
 TrafficMonitor is a lightweight Windows tool. This plugin adds one feature that is especially useful if you work with VPN/proxy nodes:
 
