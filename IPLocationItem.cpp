@@ -34,7 +34,9 @@ const wchar_t* CIPLocationItem::GetItemValueText() const
 
 const wchar_t* CIPLocationItem::GetItemValueSampleText() const
 {
-    return L"127.0.0.1 (CN)";
+    // Sizes the taskbar item. Only the address is shown, so the widest address is the
+    // right sample; the old sample also reserved room for a country suffix.
+    return L"255.255.255.255";
 }
 
 bool CIPLocationItem::IsCustomDraw() const
@@ -61,17 +63,17 @@ void CIPLocationItem::SetIPInfo(const std::wstring& ip, const std::wstring& coun
     std::lock_guard<std::mutex> lock(m_mutex);
     m_ip = ip;
     m_country = country;
-    if (m_ip.empty())
-        m_displayText = L"Failed";
-    else
-        m_displayText = m_ip + L" (" + (m_country.empty() ? L"Unknown" : m_country) + L")";
+    // The taskbar shows the address alone; the country/region belongs in the tooltip.
+    m_displayText = m_ip.empty() ? kFailedText : m_ip;
 }
 
 void CIPLocationItem::SetStatus(const std::wstring& status)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_status = status;
-    // Optionally update display text with status if IP is empty
-    if (m_ip.empty())
-        m_displayText = status;
+    // A failed refresh is reported as a failure. Keeping the previous address on screen
+    // is what made a stale address look like a current one.
+    m_ip.clear();
+    m_country.clear();
+    m_displayText = status.empty() ? kFailedText : status;
 }

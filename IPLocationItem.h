@@ -6,6 +6,9 @@
 class CIPLocationItem : public IPluginItem
 {
 public:
+    // Shown whenever the address could not be fetched.
+    static constexpr const wchar_t* kFailedText = L"Failed";
+
     CIPLocationItem();
     virtual ~CIPLocationItem();
 
