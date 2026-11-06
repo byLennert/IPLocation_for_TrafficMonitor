@@ -28,3 +28,18 @@ target_compile_definitions(IPLocationPlugin PRIVATE UNICODE _UNICODE WIN32_LEAN_
 if (MSVC)
     target_compile_options(IPLocationPlugin PRIVATE /utf-8 /W4)
 endif()
+
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(IPLocationItemTests
+        tests/IPLocationItemTests.cpp
+        IPLocationItem.cpp
+    )
+    target_include_directories(IPLocationItemTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_definitions(IPLocationItemTests PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_link_libraries(IPLocationItemTests PRIVATE gdi32)
+    if (MSVC)
+        target_compile_options(IPLocationItemTests PRIVATE /utf-8 /W4)
+    endif()
+    add_test(NAME display-width COMMAND IPLocationItemTests)
+endif()

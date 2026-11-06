@@ -21,21 +21,28 @@ jobs:
           - arch: x86
             platform: Win32
             pe_machine: "0x014c"
+            build_testing: "ON"
           - arch: x64
             platform: x64
             pe_machine: "0x8664"
+            build_testing: "ON"
           - arch: arm64ec
             platform: ARM64EC
             # Final ARM64EC DLLs have an x64 machine header plus ARM64X metadata.
             pe_machine: "0x8664"
+            build_testing: "OFF"
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.platform }}
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.platform }} -DBUILD_TESTING=${{ matrix.build_testing }}
 
       - name: Build Release
         run: cmake --build build --config Release --parallel
+
+      - name: Test full IP and country display widths
+        if: matrix.arch != 'arm64ec'
+        run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Verify DLL architecture and export
         shell: pwsh

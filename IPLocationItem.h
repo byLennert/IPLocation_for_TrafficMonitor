@@ -14,7 +14,7 @@ public:
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
 
-    void SetIP(const std::wstring& ip);
+    void SetIPInfo(const std::wstring& ip, const std::wstring& country);
     void SetStatus(const std::wstring& status);
 
 private:

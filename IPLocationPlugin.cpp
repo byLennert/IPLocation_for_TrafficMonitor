@@ -158,10 +158,12 @@ void CIPLocationPlugin::DataRequired()
     }
     else
     {
-        m_item.SetIP(m_nextIP);
+        m_item.SetIPInfo(m_nextIP, m_nextCountry);
         m_lastGoodIP = m_nextIP;
         m_lastGoodTimeText = m_nextTimeText;
         m_tooltip = L"Public IP: " + m_nextIP;
+        if (!m_nextCountry.empty())
+            m_tooltip += L"\r\n国家: " + m_nextCountry;
 
         const std::wstring location = !m_nextCity.empty() ? m_nextCity :
             (!m_nextRegion.empty() ? m_nextRegion : m_nextCountry);

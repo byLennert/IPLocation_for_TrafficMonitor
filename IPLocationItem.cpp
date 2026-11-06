@@ -27,15 +27,21 @@ const wchar_t* CIPLocationItem::GetItemValueText() const
 
 const wchar_t* CIPLocationItem::GetItemValueSampleText() const
 {
-    // TrafficMonitor uses this sample to reserve taskbar width. Leave margin
-    // for proportional fonts and DPI rounding so the final digit is visible.
-    return L"255.255.255.255  ";
+    // TrafficMonitor 1.86+ measures this text again each second using the
+    // current taskbar font and DPI. Follow the full value as its country
+    // changes, and leave margin for glyph overhang and rounding.
+    thread_local std::wstring snapshot;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    snapshot = m_displayText.empty() ? L"255.255.255.255 (Unknown)" : m_displayText;
+    snapshot += L"  ";
+    return snapshot.c_str();
 }
 
-void CIPLocationItem::SetIP(const std::wstring& ip)
+void CIPLocationItem::SetIPInfo(const std::wstring& ip, const std::wstring& country)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_displayText = ip.empty() ? L"Failed" : ip;
+    m_displayText = ip.empty() ? L"Failed" :
+        ip + L" (" + (country.empty() ? L"Unknown" : country) + L")";
 }
 
 void CIPLocationItem::SetStatus(const std::wstring& status)
