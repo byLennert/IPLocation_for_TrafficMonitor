@@ -1,135 +1,71 @@
-# IPLocationPlugin (TrafficMonitor Plugin)
+# IPLocationPlugin for TrafficMonitor
 
-[中文说明](README_zh-CN.md)
+[简体中文](README_zh-CN.md)
 
-## Preview
+Displays the full public IPv4 address and country in TrafficMonitor's taskbar or floating window, for example `110.185.36.126 (China)`. The tooltip also shows the location, lookup time, and source, making it useful when checking VPN, proxy, or network changes.
 
-![Preview](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907585.png)
+Earlier preview:
 
-## Accurate IPLocation Plugin for TrafficMonitor | Real-time IP & Region
-### Description
-I've built a new IPLocation plugin for TrafficMonitor that accurately displays your public egress IP and geographic region, auto-refreshing every 30 seconds. It fixes the inaccurate display and lack of region support in the original plugin.
-### Useful scenarios
-Verify VPN/proxy node switching instantly
-Check public IP quickly for remote development & server configuration
-Troubleshoot network issues with real egress IP
-Monitor IP status across multiple network environments
+![Earlier preview](https://picgo-lenblog.oss-cn-beijing.aliyuncs.com/lenblog/202603161907585.png)
 
-TrafficMonitor is a lightweight Windows tool. This plugin adds one feature that is especially useful if you work with VPN/proxy nodes:
+## Download and compatibility
 
-- Show the **current public (egress) IP** on the taskbar window
-- Provide a tooltip for quick copy/verification
+Download the ZIP matching the **TrafficMonitor.exe process architecture** from [GitHub Releases](https://github.com/byLennert/IPLocation_for_TrafficMonitor/releases):
 
-The goal is simple: when you switch nodes, you should be able to confirm the current egress IP within seconds.
+| TrafficMonitor build | Plugin package | Operating system |
+| --- | --- | --- |
+| x86 / Win32 | `*_x86.zip` | Windows 10/11, including a 64-bit OS running the x86 host |
+| x64 | `*_x64.zip` | Windows 10/11 x64 |
+| ARM64EC | `*_arm64ec.zip` | Windows 11 on ARM with the ARM64EC host |
 
-- Data source priority:
-  - `ipwho.is` (returns IP + location; supports `lang=zh-CN`)
-  - Fallback: `api.ipify.org` (IP only) + `ip-api.com` (country)
+Use TrafficMonitor **v1.86 or later** for automatic taskbar width updates. It remeasures plugin sample text each second using the taskbar font and DPI; v1.85.1 does not do this, so a longer country name may require a manual layout refresh.
 
-This plugin also provides tooltip text via `ITMPlugin::GetTooltipInfo()`.
+The DLL must match the host process, not merely the operating system architecture. The earlier source was tested with TrafficMonitor v1.85.1 x64. CI builds and checks the DLL architecture for the new variants, but each still needs a runtime test on matching hardware. Windows 7/8.1 have not been verified and are not claimed as supported.
 
-## Files
-
-- `PluginInterface.h`: Official TrafficMonitor plugin interface header (from TrafficMonitorPlugins repo)
-- `IPLocationPlugin.*`: Plugin implementation (`ITMPlugin`)
-- `IPLocationItem.*`: Display item implementation (`IPluginItem`)
-- `NetworkHelper.*`: WinHTTP GET helper
-- `HtmlParser.*`: Legacy HTML parser (kept for compatibility; currently not the primary path)
-- `CMakeLists.txt`: Build script
-
-## Compatibility
-
-- TrafficMonitor: tested with `v1.85.1` (x64)
-- Windows: Windows 10/11
-- Architecture: the plugin DLL must match TrafficMonitor (x64 vs x86)
-
-## Build (Windows)
-
-### Requirements
-
-- CMake
-- MSVC toolchain (Visual Studio / Build Tools)
-
-Notes:
-
-- When using MSVC, build in a Developer shell (or run `VsDevCmd.bat`) so `cl.exe` / `nmake.exe` are available.
-- For single-config generators (NMake/Ninja), use `-DCMAKE_BUILD_TYPE=Release`.
-
-### Build with MSVC + NMake (recommended for your current setup)
-
-Open the Visual Studio Developer environment (so `cl.exe` and `nmake.exe` are available), then run:
-
-```powershell
-cd D:\Project\Test\IP\IPLocationPlugin
-
-# Clean old build cache (recommended when changing generators/options)
-rmdir build -Recurse -Force
-
-cmake -S . -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-The output DLL is typically:
-
-- `build\IPLocationPlugin.dll`
-
-### Build with Visual Studio generator
-
-If CMake can detect your Visual Studio installation:
-
-```powershell
-cd D:\Project\Test\IP\IPLocationPlugin
-rmdir build -Recurse -Force
-
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-```
+If the plugin manager reports a missing `MSVCP140.dll` or `VCRUNTIME140.dll`, install the [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist) for the host architecture.
 
 ## Install
 
-1. Copy `IPLocationPlugin.dll` into TrafficMonitor's `plugins` folder.
-   Example: `D:\Utils\TrafficMonitor\plugins\`
-2. Restart TrafficMonitor.
-3. Enable the item in:
-   - Taskbar window context menu -> Display Settings
-   - Or: More Functions -> Plugin Management
+1. Extract the ZIP and put `IPLocationPlugin.dll` in the `plugins` directory beside `TrafficMonitor.exe`.
+2. Fully exit and restart TrafficMonitor.
+3. Check “More Functions → Plugin Management”, then enable `IP Location` in the taskbar display settings.
 
-Tip: if you update the DLL, fully exit TrafficMonitor (ensure the process ends) before replacing the file.
+Fully exit TrafficMonitor before replacing an existing DLL.
 
-## Behavior
+## Lookup behavior
 
-- Auto refresh: every **30 seconds** (full refresh: IP + location)
-- Manual click refresh: not used (disabled)
-- Tooltip: shows `Public IP` and one merged `地区` line (avoids duplicated country/region/city)
+- Each poll queries three services concurrently and rotates through `ipv4.icanhazip.com`, `api4.ipify.org`, `v4.ident.me`, `ipinfo.io/ip`, and `api.ip.sb/ip`. It accepts only valid IPv4 addresses and selects the most frequent response. Ties prefer the first result in that poll. If all three fail, it tries `ipwho.is`.
+- It waits 30 seconds after a successful poll or 10 seconds after an IP lookup failure before the next poll. Request time adds to that interval.
+- The taskbar displays the complete `IP (country)` value. The width sample follows that value with extra padding so TrafficMonitor v1.86+ can expand it for long country names and the selected font/DPI. A layout update may take up to the next taskbar timer tick (about one second).
+- While country lookup is pending or unavailable, it displays `IP (Unknown)`. A failed IP poll displays `Failed` instead of a stale address; the last confirmed address remains in the tooltip for diagnosis.
+- Location is looked up after the address is published, using `ipwho.is` first and the HTTP-only free `ip-api.com` endpoint as a location fallback. Successful location data is cached per IP.
+- WinHTTP uses the current user's manual proxy, PAC, or auto-detect settings. No-cache headers and a changing query parameter reduce stale proxy or CDN responses.
 
-IPv4 only:
+Proxy routing rules can send different lookup domains through different exits. The tooltip shows the selected source and vote count; the result cannot represent every application's route. Location databases may also disagree on VPN or data-center IPs.
 
-- The displayed IP is forced to IPv4 (some networks return IPv6 by default).
+## Build from source
 
-## Data quality notes
+Requires Windows, CMake 3.21+, Visual Studio 2022 C++ tools, and the corresponding architecture components. From this repository root, for x64:
 
-Location databases may disagree for proxy/datacenter IPs. This plugin prioritizes `ipwho.is` because it provides stable JSON access without requiring a browser.
+```powershell
+cmake -S . -B build-x64 -G "Visual Studio 17 2022" -A x64
+cmake --build build-x64 --config Release
+ctest --test-dir build-x64 -C Release --output-on-failure
+```
 
-If you see different country/region in another software, it is usually due to:
+Use `-A Win32` with `build-x86` or `-A ARM64EC` with `build-arm64ec` for the other architectures. The DLL is in the selected build directory's `Release` subdirectory. Windows CI builds all three on main and pull requests and uploads the DLLs as test artifacts; a `v*` tag publishes three ZIPs and `SHA256SUMS.txt` after CI succeeds.
 
-- Different geolocation database vendors
-- IP ownership/route changes (ASN prefix moved)
-- Proxy/VPN/datacenter tagging differences
+CI runs GDI display-width regression tests for x86/x64 with long IPv4 addresses, Chinese and long English country names, three fonts, and 100%/125%/150%/200% scaling. ARM64EC is built and checked but cannot run on an x64 runner; configure it with `-DBUILD_TESTING=OFF` when cross-compiling.
+
+The vendored `PluginInterface.h` remains at API 7 for compatibility with the previously tested TrafficMonitor version. The current official loader does not reject API 7, but runtime compatibility with each newer host build still needs testing. This plugin does not use the API 8 drawing functions.
 
 ## Troubleshooting
 
-- If TrafficMonitor crashes on startup after copying the DLL, it is almost always an ABI mismatch.
-  Ensure you are using the official `PluginInterface.h` that matches your TrafficMonitor version.
-- If location looks inconsistent, note that different databases may return different results for proxy/datacenter IPs.
+- Plugin not loaded: check DLL/host architecture, VC++ runtime, and the `plugins` directory.
+- Text clipped: use TrafficMonitor v1.86+, confirm the new DLL is loaded, and allow a second for the width to update. Also check secondary-monitor DPI and StartAllBack layouts.
+- Address stays unchanged: check application routing and PAC settings, then inspect the tooltip's lookup time and source.
+- Location differs from another app: geo databases differ; location failure does not prevent the IP from displaying.
 
-## License
+## License and credits
 
-MIT License. See `LICENSE`.
-
-## Credits
-
-- TrafficMonitor plugin system and interface header are provided by the TrafficMonitor project.
-
-## Contact
-
-- Email: 1416679017@qq.com
+MIT License; see [LICENSE](LICENSE). Plugin interface provided by [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor).

@@ -1,0 +1,134 @@
+name: Windows build and release
+
+on:
+  push:
+    branches: [main, "fix/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+            pe_machine: "0x014c"
+            build_testing: "ON"
+          - arch: x64
+            platform: x64
+            pe_machine: "0x8664"
+            build_testing: "ON"
+          - arch: arm64ec
+            platform: ARM64EC
+            # Final ARM64EC DLLs have an x64 machine header plus ARM64X metadata.
+            pe_machine: "0x8664"
+            build_testing: "OFF"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.platform }} -DBUILD_TESTING=${{ matrix.build_testing }}
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Test full IP and country display widths
+        if: matrix.arch != 'arm64ec'
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Verify DLL architecture and export
+        shell: pwsh
+        env:
+          EXPECTED_MACHINE: ${{ matrix.pe_machine }}
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          $dll = Join-Path $PWD 'build\Release\IPLocationPlugin.dll'
+          if (-not (Test-Path -LiteralPath $dll)) { throw "DLL not found: $dll" }
+          $bytes = [System.IO.File]::ReadAllBytes($dll)
+          $pe = [System.BitConverter]::ToInt32($bytes, 0x3c)
+          $machine = [System.BitConverter]::ToUInt16($bytes, $pe + 4)
+          if ($machine -ne [Convert]::ToUInt16($env:EXPECTED_MACHINE, 16)) {
+            throw "Wrong PE machine: 0x$($machine.ToString('x4')) (expected $env:EXPECTED_MACHINE)"
+          }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsRoot = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsRoot) { throw 'Visual Studio C++ tools not found' }
+          $toolset = Get-ChildItem -LiteralPath (Join-Path $vsRoot 'VC\Tools\MSVC') -Directory |
+            Sort-Object Name -Descending | Select-Object -First 1
+          $dumpbin = Join-Path $toolset.FullName 'bin\Hostx64\x64\dumpbin.exe'
+          $headers = & $dumpbin /headers $dll
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read DLL headers' }
+          if ($env:BUILD_ARCH -eq 'arm64ec' -and -not ($headers | Select-String 'machine.*\(ARM64X\)')) {
+            throw 'ARM64EC DLL is missing ARM64X metadata'
+          }
+          $exports = & $dumpbin /exports $dll
+          if ($LASTEXITCODE -ne 0 -or -not ($exports | Select-String '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+TMPluginGetInstance(?:\s|$)')) {
+            throw 'TMPluginGetInstance is not exported under the expected name'
+          }
+
+      - name: Upload DLL for runtime testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: dll-${{ matrix.arch }}
+          path: build/Release/IPLocationPlugin.dll
+          if-no-files-found: error
+
+      - name: Package tag build
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          $dll = Join-Path $PWD 'build\Release\IPLocationPlugin.dll'
+          $zip = Join-Path $PWD "dist\IPLocationPlugin_$($env:RELEASE_TAG)_$($env:ARCH).zip"
+          Compress-Archive -LiteralPath $dll -DestinationPath $zip
+
+      - name: Upload tag package
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+
+      - name: Write SHA-256 checksums
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem -LiteralPath dist -Filter '*.zip' | Sort-Object Name)
+          if ($packages.Count -ne 3) { throw "Expected 3 architecture packages, found $($packages.Count)" }
+          $lines = foreach ($package in $packages) {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $package.FullName).Hash.ToLowerInvariant()
+            "$hash  $($package.Name)"
+          }
+          Set-Content -LiteralPath dist\SHA256SUMS.txt -Value $lines -Encoding utf8NoBOM
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
