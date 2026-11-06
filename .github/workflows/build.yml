@@ -20,14 +20,14 @@ jobs:
         include:
           - arch: x86
             platform: Win32
-            pe_machine: 0x014c
+            pe_machine: "0x014c"
           - arch: x64
             platform: x64
-            pe_machine: 0x8664
+            pe_machine: "0x8664"
           - arch: arm64ec
             platform: ARM64EC
             # Final ARM64EC DLLs have an x64 machine header plus ARM64X metadata.
-            pe_machine: 0x8664
+            pe_machine: "0x8664"
     steps:
       - uses: actions/checkout@v4
 
